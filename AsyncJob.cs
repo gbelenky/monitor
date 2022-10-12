@@ -42,11 +42,39 @@ namespace gbelenky.monitor
         {
             // Function input comes from the request content.
             string instanceId = req.RequestUri.Query.Split("=")[1];
-            await starter.StartNewAsync("AsyncJobOrchestrator", instanceId);
 
-            log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
+            if (!String.IsNullOrEmpty(instanceId))
+            {
 
-            return starter.CreateCheckStatusResponse(req, instanceId);
+                // Check if an instance with the specified ID already exists or an existing one stopped running(completed/failed/terminated).
+                var existingInstance = await starter.GetStatusAsync(instanceId);
+                if (existingInstance == null
+                || existingInstance.RuntimeStatus == OrchestrationRuntimeStatus.Completed
+                || existingInstance.RuntimeStatus == OrchestrationRuntimeStatus.Failed
+                || existingInstance.RuntimeStatus == OrchestrationRuntimeStatus.Terminated)
+                {
+                    // An instance with the specified ID doesn't exist or an existing one stopped running, create one.
+                    await starter.StartNewAsync("AsyncJobOrchestrator", instanceId);
+                    log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
+                    return starter.CreateCheckStatusResponse(req, instanceId);
+                }
+                else
+                {
+                    // An instance with the specified ID exists or an existing one still running, don't create one.
+                    return new HttpResponseMessage(HttpStatusCode.Conflict)
+                    {
+                        Content = new StringContent($"An instance with ID '{instanceId}' already exists."),
+                    };
+                }
+            }
+            else
+            {
+                return new HttpResponseMessage(HttpStatusCode.UnprocessableEntity)
+                {
+                    Content = new StringContent($"Please provide instanceId in your request payload"),
+                };
+
+            }
         }
 
         [FunctionName("AsyncJobStatus")]
