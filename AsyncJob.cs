@@ -41,29 +41,29 @@ namespace gbelenky.monitor
             ILogger log)
         {
             // Function input comes from the request content.
-            string instanceId = req.RequestUri.Query.Split("=")[1];
+            string jobId = req.RequestUri.Query.Split("=")[1];
 
-            if (!String.IsNullOrEmpty(instanceId))
+            if (!String.IsNullOrEmpty(jobId))
             {
 
                 // Check if an instance with the specified ID already exists or an existing one stopped running(completed/failed/terminated).
-                var existingInstance = await starter.GetStatusAsync(instanceId);
+                var existingInstance = await starter.GetStatusAsync(jobId);
                 if (existingInstance == null
                 || existingInstance.RuntimeStatus == OrchestrationRuntimeStatus.Completed
                 || existingInstance.RuntimeStatus == OrchestrationRuntimeStatus.Failed
                 || existingInstance.RuntimeStatus == OrchestrationRuntimeStatus.Terminated)
                 {
                     // An instance with the specified ID doesn't exist or an existing one stopped running, create one.
-                    await starter.StartNewAsync("AsyncJobOrchestrator", instanceId);
-                    log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
-                    return starter.CreateCheckStatusResponse(req, instanceId);
+                    await starter.StartNewAsync("AsyncJobOrchestrator", jobId);
+                    log.LogInformation($"Started AsyncJobOrchestrator with ID = '{jobId}'.");
+                    return starter.CreateCheckStatusResponse(req, jobId);
                 }
                 else
                 {
                     // An instance with the specified ID exists or an existing one still running, don't create one.
                     return new HttpResponseMessage(HttpStatusCode.Conflict)
                     {
-                        Content = new StringContent($"An instance with ID '{instanceId}' already exists."),
+                        Content = new StringContent($"An job with ID '{jobId}' already exists."),
                     };
                 }
             }
@@ -71,7 +71,7 @@ namespace gbelenky.monitor
             {
                 return new HttpResponseMessage(HttpStatusCode.UnprocessableEntity)
                 {
-                    Content = new StringContent($"Please provide instanceId in your request payload"),
+                    Content = new StringContent($"Please provide jobId in your request payload"),
                 };
 
             }
@@ -82,13 +82,14 @@ namespace gbelenky.monitor
        [HttpTrigger(AuthorizationLevel.Anonymous, "get")] HttpRequestMessage req,
            [DurableClient] IDurableOrchestrationClient client, ILogger log)
         {
-            string instanceId = req.RequestUri.Query.Split("=")[1];
-            DurableOrchestrationStatus orchStatus = await client.GetStatusAsync(instanceId);
+            string jobId = req.RequestUri.Query.Split("=")[1];
+            DurableOrchestrationStatus orchStatus = await client.GetStatusAsync(jobId);
+
             HttpResponseMessage httpResponseMessage = new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(orchStatus.CustomStatus.ToString())
             };
-
+            log.LogTrace($"AsyncJobStatus: current status for job {jobId} is {orchStatus.CustomStatus.ToString()}");
             return httpResponseMessage;
         }
     }

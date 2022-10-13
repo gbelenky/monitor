@@ -6,6 +6,13 @@
                 "isEnabled": true,
                 "excludedTypes": "Request"
             }
-        }
+        },
+        "logLevel": {
+            "Function.AsyncJobStatus": "Trace",
+            "Function.GetAsyncJobStatus": "Trace",
+            "Host.Results": "Error",
+            "Host.Aggregator": "Error",
+            "default": "None"
+          }
     }
 }

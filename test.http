@@ -1,9 +1,9 @@
-GET http://localhost:7071/api/AsyncJobTrigger?instanceId=4712 HTTP/1.1
+GET http://localhost:7071/api/AsyncJobTrigger?jobId=4711 HTTP/1.1
 
 ###
 
-GET http://localhost:7071/api/AsyncJobStatus?instanceId=4712  HTTP/1.1
+GET http://localhost:7071/api/AsyncJobStatus?jobId=4711  HTTP/1.1
 
 ###
 
-GET http://localhost:7071/api/MonitorTrigger?instanceId=4721 HTTP/1.1
+GET http://localhost:7071/api/MonitorTrigger?jobId=4711 HTTP/1.1
