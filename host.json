@@ -1,18 +1,19 @@
 {
     "version": "2.0",
     "logging": {
+        "fileLoggingMode": "debugOnly",
+        "logLevel": {
+          "Function.AsyncJobTrigger": "Trace",
+          "Function.AsyncJobStatus": "Trace",
+          "Function.GetAsyncJobStatus": "Trace",
+          "Function.StartAsyncJob": "Trace",
+          "default": "None"
+        },
         "applicationInsights": {
             "samplingSettings": {
                 "isEnabled": true,
                 "excludedTypes": "Request"
             }
-        },
-        "logLevel": {
-            "Function.AsyncJobStatus": "Trace",
-            "Function.GetAsyncJobStatus": "Trace",
-            "Host.Results": "Error",
-            "Host.Aggregator": "Error",
-            "default": "None"
-          }
+        }
     }
 }

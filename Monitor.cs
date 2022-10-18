@@ -21,12 +21,12 @@ namespace gbelenky.monitor
         public static async Task MonitorOrchestrator(
             [OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
         {
-            string jobId = context.GetInput<string>();
-
+            string jobName = context.GetInput<string>();
+            //string jobName = context.InstanceId;
             int pollingInterval = 1;
             DateTime expiryTime = context.CurrentUtcDateTime.AddMinutes(1);
 
-            await context.CallActivityAsync("StartAsyncJob", jobId);
+            string jobId = await context.CallActivityAsync<string>("StartAsyncJob", jobName);
 
             while (context.CurrentUtcDateTime < expiryTime)
             {
@@ -39,12 +39,13 @@ namespace gbelenky.monitor
         }
 
         [FunctionName("StartAsyncJob")]
-        public static async Task StartAsyncJob([ActivityTrigger] string jobId)
+        public static async Task<string> StartAsyncJob([ActivityTrigger] string jobName)
         {
             HttpClient httpClient = new HttpClient();
-            var callString = $"http://localhost:7071/api/AsyncJobTrigger?jobId={jobId}";
-            var response = await httpClient.GetAsync(callString);
-            return;
+            string callString = $"http://localhost:7071/api/job-start/{jobName}";
+            string jobId = await httpClient.GetStringAsync(callString);
+
+            return jobId;
         }
 
         [FunctionName("GetAsyncJobStatus")]
@@ -52,43 +53,54 @@ namespace gbelenky.monitor
         {
             HttpClient httpClient = new HttpClient();
 
-            var callString = $"http://localhost:7071/api/AsyncJobStatus?jobId={jobId}";
-            string jobStatus = await httpClient.GetStringAsync(callString);
+            string callString = $"http://localhost:7071/api/job-status/{jobId}";
+            string jobResultStr = await httpClient.GetStringAsync(callString);
+            JobResult jobResult = JsonConvert.DeserializeObject<JobResult>(jobResultStr);
+            string jobStatus = jobResult.JobStatus;
             if ((jobStatus == "Queued") || (jobStatus == "InProgress") || (jobStatus == "Completed"))
-                {
-                    log.LogTrace($"Monitor: current status for job {jobId} is {jobStatus}");
-                }
+            {
+                log.LogTrace($"Monitor: current status for jobName '{jobResult.JobName}' jobId '{jobId}' is '{jobStatus}' ");
+            }
             return jobStatus;
         }
 
         [FunctionName("MonitorTrigger")]
         public static async Task<HttpResponseMessage> MonitorTrigger(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get")] HttpRequestMessage req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "monitor-job/{jobName}")] HttpRequestMessage req,
             [DurableClient] IDurableOrchestrationClient starter,
+            string jobName,
             ILogger log)
         {
-            // Function input comes from the request content.
-            string jobId = req.RequestUri.Query.Split("=")[1];
-            string monitorJobId = $"Monitor-{jobId}";
-
-            var existingInstance = await starter.GetStatusAsync(monitorJobId);
-            if (existingInstance == null
-            || existingInstance.RuntimeStatus == OrchestrationRuntimeStatus.Completed
-            || existingInstance.RuntimeStatus == OrchestrationRuntimeStatus.Failed
-            || existingInstance.RuntimeStatus == OrchestrationRuntimeStatus.Terminated)
+            string instanceId = $"monitor-{jobName}";
+            var existingInstance = await starter.GetStatusAsync(instanceId);
+            if (!String.IsNullOrEmpty(instanceId))
             {
-                // An instance with the specified ID doesn't exist or an existing one stopped running, create one.
-                await starter.StartNewAsync("MonitorOrchestrator", monitorJobId, jobId);
-                log.LogInformation($"Started MonitorOrchestrator with ID = '{monitorJobId}'.");
-                return starter.CreateCheckStatusResponse(req, monitorJobId);
+                if (existingInstance == null
+                || existingInstance.RuntimeStatus == OrchestrationRuntimeStatus.Completed
+                || existingInstance.RuntimeStatus == OrchestrationRuntimeStatus.Failed
+                || existingInstance.RuntimeStatus == OrchestrationRuntimeStatus.Terminated)
+                {
+                    // An instance with the specified ID doesn't exist or an existing one stopped running, create one.
+                    await starter.StartNewAsync("MonitorOrchestrator", instanceId, jobName);
+                    log.LogInformation($"Started MonitorOrchestrator with Id = '{instanceId}'.");
+                    return starter.CreateCheckStatusResponse(req, instanceId);
+                }
+                else
+                {
+                    // An instance with the specified ID exists or an existing one still running, don't create one.
+                    return new HttpResponseMessage(HttpStatusCode.Conflict)
+                    {
+                        Content = new StringContent($"An instance with Id '{instanceId}' already exists."),
+                    };
+                }
             }
             else
             {
-                // An instance with the specified ID exists or an existing one still running, don't create one.
-                return new HttpResponseMessage(HttpStatusCode.Conflict)
+                return new HttpResponseMessage(HttpStatusCode.UnprocessableEntity)
                 {
-                    Content = new StringContent($"An instance with ID '{jobId}' already exists."),
+                    Content = new StringContent($"Please provide instance Id in your request payload"),
                 };
+
             }
         }
 
