@@ -62,11 +62,17 @@ namespace gbelenky.monitor
                 {
                     // An instance with the specified ID doesn't exist or an existing one stopped running, create one.
                     await starter.StartNewAsync("AsyncJobOrchestrator", instanceId);
-                    log.LogInformation($"Started AsyncJobOrchestrator with JobName = '{jobName}'.");
-                    //return starter.CreateCheckStatusResponse(req, jobId);
+                    log.LogInformation($"Started AsyncJobOrchestrator with jobName = '{jobName}'");
+                    
+                    JobResult result = new JobResult()
+                    {
+                        JobId = jobId,
+                        JobName = jobName,
+                        JobStatus = "Initializing"
+                    };
                     return new HttpResponseMessage(HttpStatusCode.Accepted)
                     {
-                        Content = new StringContent($"{jobId}"),
+                        Content = new StringContent(JsonConvert.SerializeObject(result))
                     };
                 }
                 else
@@ -102,7 +108,7 @@ namespace gbelenky.monitor
 
             string instanceId = $"job-{jobName}";
             DurableOrchestrationStatus orchStatus = await starter.GetStatusAsync(instanceId);
-            // TODO -return JobName too
+
             JobResult result = new JobResult()
             {
                 JobId = jobId,
@@ -111,12 +117,9 @@ namespace gbelenky.monitor
             };
             HttpResponseMessage httpResponseMessage = new HttpResponseMessage(HttpStatusCode.OK)
             {
-                // Content = new StringContent(orchStatus.CustomStatus.ToString())
-
-
                 Content = new StringContent(JsonConvert.SerializeObject(result))
             };
-            log.LogTrace($"AsyncJobStatus: current status for job name '{jobName}' is '{orchStatus.CustomStatus.ToString()}'");
+            log.LogTrace($"AsyncJobStatus: current status for jobName '{jobName}' jobId '{jobId}' is '{orchStatus.CustomStatus.ToString()}'");
             return httpResponseMessage;
         }
     }

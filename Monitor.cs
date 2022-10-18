@@ -43,9 +43,9 @@ namespace gbelenky.monitor
         {
             HttpClient httpClient = new HttpClient();
             string callString = $"http://localhost:7071/api/job-start/{jobName}";
-            string jobId = await httpClient.GetStringAsync(callString);
-
-            return jobId;
+            string jobResultStr = await httpClient.GetStringAsync(callString);
+            JobResult jobResult = JsonConvert.DeserializeObject<JobResult>(jobResultStr);
+            return jobResult.JobId;
         }
 
         [FunctionName("GetAsyncJobStatus")]
