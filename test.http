@@ -1,8 +1,8 @@
-GET http://localhost:7071/api/job-start/gb4712 HTTP/1.1
+GET http://localhost:7071/api/job-start/gb4713 HTTP/1.1
 
 ###
 
-GET http://localhost:7071/api/job-status/gb4712  HTTP/1.1
+GET http://localhost:7071/api/job-status/8ac2a1f4-d129-4a0f-a2e8-7a03c7815d16  HTTP/1.1
 
 ###
 

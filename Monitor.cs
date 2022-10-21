@@ -11,7 +11,7 @@ using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using System.Net.Http;
 using System.Threading;
 using System.Net;
-using System.Text;
+
 
 namespace gbelenky.monitor
 {
@@ -23,12 +23,12 @@ namespace gbelenky.monitor
         {
             string jobName = context.GetInput<string>();
             //string jobName = context.InstanceId;
-            int pollingInterval = 1;
-            DateTime expiryTime = context.CurrentUtcDateTime.AddMinutes(1);
+            double pollingInterval = Double.Parse(Environment.GetEnvironmentVariable("MONITOR_POLLINGINTERVAL_SEC"));
+            DateTime monitoringTime = context.CurrentUtcDateTime.AddMinutes(Double.Parse(Environment.GetEnvironmentVariable("MONITOR_DURATION_MIN")));
 
             string jobId = await context.CallActivityAsync<string>("StartAsyncJob", jobName);
 
-            while (context.CurrentUtcDateTime < expiryTime)
+            while (context.CurrentUtcDateTime < monitoringTime)
             {
                 var jobStatus = await context.CallActivityAsync<string>("GetAsyncJobStatus", jobId);
                 // Orchestration sleeps until this time.
@@ -42,7 +42,8 @@ namespace gbelenky.monitor
         public static async Task<string> StartAsyncJob([ActivityTrigger] string jobName)
         {
             HttpClient httpClient = new HttpClient();
-            string callString = $"http://localhost:7071/api/job-start/{jobName}";
+            string startUrl = Environment.GetEnvironmentVariable("START_ASYNC_JOB_URL");
+            string callString = $"{startUrl}/{jobName}";
             string jobResultStr = await httpClient.GetStringAsync(callString);
             JobResult jobResult = JsonConvert.DeserializeObject<JobResult>(jobResultStr);
             return jobResult.JobId;
@@ -52,8 +53,8 @@ namespace gbelenky.monitor
         public static async Task<string> GetAsyncJobStatus([ActivityTrigger] string jobId, ILogger log)
         {
             HttpClient httpClient = new HttpClient();
-
-            string callString = $"http://localhost:7071/api/job-status/{jobId}";
+            string statusUrl = Environment.GetEnvironmentVariable("ASYNC_JOB_STATUS_URL");
+            string callString = $"{statusUrl}/{jobId}";
             string jobResultStr = await httpClient.GetStringAsync(callString);
             JobResult jobResult = JsonConvert.DeserializeObject<JobResult>(jobResultStr);
             string jobStatus = jobResult.JobStatus;

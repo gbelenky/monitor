@@ -23,11 +23,11 @@ namespace gbelenky.monitor
         {
 
             context.SetCustomStatus("Queued");
-            DateTime queuedTime = context.CurrentUtcDateTime.AddSeconds(10);
+            DateTime queuedTime = context.CurrentUtcDateTime.AddSeconds(Double.Parse(Environment.GetEnvironmentVariable("ASYNC_JOB_QUEUED_DURATION_SEC")));
             await context.CreateTimer(queuedTime, CancellationToken.None);
 
             context.SetCustomStatus("InProgress");
-            DateTime inProgressTime = context.CurrentUtcDateTime.AddSeconds(10);
+            DateTime inProgressTime = context.CurrentUtcDateTime.AddSeconds(Double.Parse(Environment.GetEnvironmentVariable("ASYNC_JOB_INPROGRESS_DURATION_SEC")));
             await context.CreateTimer(inProgressTime, CancellationToken.None);
 
             context.SetCustomStatus("Completed");
