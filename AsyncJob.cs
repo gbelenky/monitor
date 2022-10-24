@@ -22,12 +22,16 @@ namespace gbelenky.monitor
             [OrchestrationTrigger] IDurableOrchestrationContext context, ILogger logger)
         {
 
+            (double, double) orchParams = context.GetInput<(double, double)>();
+            double queuedParam = orchParams.Item1;
+            double inProgressParam = orchParams.Item2;
+
             context.SetCustomStatus("Queued");
-            DateTime queuedTime = context.CurrentUtcDateTime.AddSeconds(Double.Parse(Environment.GetEnvironmentVariable("ASYNC_JOB_QUEUED_DURATION_SEC")));
+            DateTime queuedTime = context.CurrentUtcDateTime.AddSeconds(queuedParam);
             await context.CreateTimer(queuedTime, CancellationToken.None);
 
             context.SetCustomStatus("InProgress");
-            DateTime inProgressTime = context.CurrentUtcDateTime.AddSeconds(Double.Parse(Environment.GetEnvironmentVariable("ASYNC_JOB_INPROGRESS_DURATION_SEC")));
+            DateTime inProgressTime = context.CurrentUtcDateTime.AddSeconds(inProgressParam);
             await context.CreateTimer(inProgressTime, CancellationToken.None);
 
             context.SetCustomStatus("Completed");
@@ -61,9 +65,13 @@ namespace gbelenky.monitor
                 || existingInstance.RuntimeStatus == OrchestrationRuntimeStatus.Terminated)
                 {
                     // An instance with the specified ID doesn't exist or an existing one stopped running, create one.
-                    await starter.StartNewAsync("AsyncJobOrchestrator", instanceId);
+                    // packing all together into one orchParams to avoid "Environment.GetEnvironmentVariable' violates the orchestrator deterministic code constraint"
+                    double queueDuration = Double.Parse(Environment.GetEnvironmentVariable("ASYNC_JOB_QUEUED_DURATION_SEC"));
+                    double inProgressDuration = Double.Parse(Environment.GetEnvironmentVariable("ASYNC_JOB_INPROGRESS_DURATION_SEC"));
+                    (double, double) orchParams = (queueDuration, inProgressDuration);
+                    await starter.StartNewAsync("AsyncJobOrchestrator", instanceId, orchParams);
                     log.LogInformation($"Started AsyncJobOrchestrator with jobName = '{jobName}'");
-                    
+
                     JobResult result = new JobResult()
                     {
                         JobId = jobId,

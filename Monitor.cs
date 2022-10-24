@@ -17,15 +17,18 @@ namespace gbelenky.monitor
 {
     public static class Monitor
     {
+        private static HttpClient httpClient = new HttpClient();
+
         [FunctionName("MonitorOrchestrator")]
         public static async Task MonitorOrchestrator(
             [OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
         {
-            string jobName = context.GetInput<string>();
-            //string jobName = context.InstanceId;
-            double pollingInterval = Double.Parse(Environment.GetEnvironmentVariable("MONITOR_POLLINGINTERVAL_SEC"));
-            DateTime monitoringTime = context.CurrentUtcDateTime.AddMinutes(Double.Parse(Environment.GetEnvironmentVariable("MONITOR_DURATION_MIN")));
-
+            (string, double, double) orchParams = context.GetInput<(string, double, double)>();
+            string jobName = orchParams.Item1;
+            double pollingInterval = orchParams.Item2;
+            double monitorDuration = orchParams.Item3;
+            DateTime monitoringTime = context.CurrentUtcDateTime.AddMinutes(monitorDuration);
+            
             string jobId = await context.CallActivityAsync<string>("StartAsyncJob", jobName);
 
             while (context.CurrentUtcDateTime < monitoringTime)
@@ -33,7 +36,7 @@ namespace gbelenky.monitor
                 var jobStatus = await context.CallActivityAsync<string>("GetAsyncJobStatus", jobId);
                 // Orchestration sleeps until this time.
                 var nextCheck = context.CurrentUtcDateTime.AddSeconds(pollingInterval);
-                Task timeoutTask = context.CreateTimer(nextCheck, CancellationToken.None);
+                await context.CreateTimer(nextCheck, CancellationToken.None);
             }
             return;
         }
@@ -41,7 +44,6 @@ namespace gbelenky.monitor
         [FunctionName("StartAsyncJob")]
         public static async Task<string> StartAsyncJob([ActivityTrigger] string jobName)
         {
-            HttpClient httpClient = new HttpClient();
             string startUrl = Environment.GetEnvironmentVariable("START_ASYNC_JOB_URL");
             string callString = $"{startUrl}/{jobName}";
             string jobResultStr = await httpClient.GetStringAsync(callString);
@@ -52,7 +54,6 @@ namespace gbelenky.monitor
         [FunctionName("GetAsyncJobStatus")]
         public static async Task<string> GetAsyncJobStatus([ActivityTrigger] string jobId, ILogger log)
         {
-            HttpClient httpClient = new HttpClient();
             string statusUrl = Environment.GetEnvironmentVariable("ASYNC_JOB_STATUS_URL");
             string callString = $"{statusUrl}/{jobId}";
             string jobResultStr = await httpClient.GetStringAsync(callString);
@@ -82,7 +83,13 @@ namespace gbelenky.monitor
                 || existingInstance.RuntimeStatus == OrchestrationRuntimeStatus.Terminated)
                 {
                     // An instance with the specified ID doesn't exist or an existing one stopped running, create one.
-                    await starter.StartNewAsync("MonitorOrchestrator", instanceId, jobName);
+                    // packing all together into one orchParams to avoid "Environment.GetEnvironmentVariable' violates the orchestrator deterministic code constraint"
+                    double pollingInterval = Double.Parse(Environment.GetEnvironmentVariable("MONITOR_POLLINGINTERVAL_SEC"));
+                    double monitorDuration = Double.Parse(Environment.GetEnvironmentVariable("MONITOR_DURATION_MIN"));
+                    (string, double, double) orchParams = (jobName, pollingInterval, monitorDuration); 
+
+                    await starter.StartNewAsync("MonitorOrchestrator", instanceId, orchParams);
+                    
                     log.LogInformation($"Started MonitorOrchestrator with Id = '{instanceId}'.");
                     return starter.CreateCheckStatusResponse(req, instanceId);
                 }
