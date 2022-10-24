@@ -1,4 +1,4 @@
-# Monitoring long running async HTTP REST requests
+# Starting and monitoring long running async HTTP/REST requests
 
 ## Scenario overview. Contoso Books, Ltd
 
