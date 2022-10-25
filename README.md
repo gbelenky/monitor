@@ -31,5 +31,28 @@ The monitoring orchestrator solely needs the ETL/ELT service endpoints for trigg
 
 ![](docs/media/2022-10-24-15-51-52.png)
 
-  
+### Configuration and test
+
+You can run the code locally inside Visual Studio Code as described [here](https://learn.microsoft.com/en-us/azure/azure-functions/durable/durable-functions-create-first-csharp?pivots=code-editor-vscode)
+
+For the local configuration you will need to create a local.settings.json file with the following content:
+```json
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet",
+    "START_ASYNC_JOB_URL" : "http://localhost:7071/api/job-start",
+    "ASYNC_JOB_STATUS_URL" : "http://localhost:7071/api/job-status",
+    "ASYNC_JOB_QUEUED_DURATION_SEC" : 2,
+    "ASYNC_JOB_INPROGRESS_DURATION_SEC" : 2,
+    "MONITOR_DURATION_MIN" : 1,
+    "MONITOR_POLLINGINTERVAL_SEC" : 20
+  }
+}
+```
+To trigger the orchestration, you can issue the following HTTP request:
+```HTTP
+GET http://localhost:7071/api/monitor-job/gb4711 HTTP/1.1
+```    
 
