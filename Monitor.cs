@@ -1,10 +1,7 @@
 using System;
-using System.IO;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
@@ -23,10 +20,11 @@ namespace gbelenky.monitor
         public static async Task MonitorOrchestrator(
             [OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
         {
-            (string, double, double) orchParams = context.GetInput<(string, double, double)>();
+            (string, double, double, string) orchParams = context.GetInput<(string, double, double, string)>();
             string jobName = orchParams.Item1;
             double pollingInterval = orchParams.Item2;
             double monitorDuration = orchParams.Item3;
+            string asyncJobCompletedStatus = orchParams.Item4;
             DateTime monitoringTime = context.CurrentUtcDateTime.AddMinutes(monitorDuration);
             
             string jobId = await context.CallActivityAsync<string>("StartAsyncJob", jobName);
@@ -34,6 +32,10 @@ namespace gbelenky.monitor
             while (context.CurrentUtcDateTime < monitoringTime)
             {
                 var jobStatus = await context.CallActivityAsync<string>("GetAsyncJobStatus", jobId);
+                if (jobStatus == asyncJobCompletedStatus)
+                {
+                    break;
+                }
                 // Orchestration sleeps until this time.
                 var nextCheck = context.CurrentUtcDateTime.AddSeconds(pollingInterval);
                 await context.CreateTimer(nextCheck, CancellationToken.None);
@@ -86,7 +88,8 @@ namespace gbelenky.monitor
                     // packing all together into one orchParams to avoid "Environment.GetEnvironmentVariable' violates the orchestrator deterministic code constraint"
                     double pollingInterval = Double.Parse(Environment.GetEnvironmentVariable("MONITOR_POLLINGINTERVAL_SEC"));
                     double monitorDuration = Double.Parse(Environment.GetEnvironmentVariable("MONITOR_DURATION_MIN"));
-                    (string, double, double) orchParams = (jobName, pollingInterval, monitorDuration); 
+                    string asyncJobCompletedStatus = Environment.GetEnvironmentVariable("ASYNC_JOB_COMPLETED_STATUS");
+                    (string, double, double, string) orchParams = (jobName, pollingInterval, monitorDuration, asyncJobCompletedStatus); 
 
                     await starter.StartNewAsync("MonitorOrchestrator", instanceId, orchParams);
                     
